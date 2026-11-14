@@ -1,23 +1,80 @@
-import { useState } from "react";
-import "./App.css";
+import { useEffect } from "react";
+import { Routes, Route, useLocation, Link } from "react-router-dom";
+import { CartProvider } from "./lib/cart";
+import useReveal from "./hooks/useReveal";
+import Cursor from "./components/Cursor";
+import ScrollMoon from "./components/ScrollMoon";
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
+import Marquee from "./components/Marquee";
 import Story from "./components/Story";
 import Collection from "./components/Collection";
-import ProductDetail from "./components/ProductDetail";
+import Featured from "./components/Featured";
+import ProductPage from "./components/ProductPage";
 import Footer from "./components/Footer";
+import CartDrawer from "./components/CartDrawer";
+import "./App.css";
 
-export default function App() {
-  const [cartCount, setCartCount] = useState(0);
+/** Keeps anchor links working and stops new pages opening halfway down. */
+function ScrollManager() {
+  const { pathname, hash } = useLocation();
 
+  useEffect(() => {
+    if (hash) {
+      const target = document.querySelector(hash);
+      if (target) {
+        const id = requestAnimationFrame(() => target.scrollIntoView({ behavior: "smooth", block: "start" }));
+        return () => cancelAnimationFrame(id);
+      }
+    }
+    window.scrollTo(0, 0);
+  }, [pathname, hash]);
+
+  return null;
+}
+
+function Home() {
+  useReveal([]);
   return (
     <>
-      <Navbar cartCount={cartCount} />
       <Hero />
+      <Marquee />
       <Story />
       <Collection />
-      <ProductDetail onAdd={(q) => setCartCount((c) => c + q)} />
-      <Footer />
+      <Featured />
     </>
+  );
+}
+
+function NotFound() {
+  return (
+    <section className="missing">
+      <p className="eyebrow">New moon</p>
+      <h1>Nothing here but dark.</h1>
+      <p>The page you were looking for has set.</p>
+      <Link to="/" className="btn">
+        Back to the beginning
+      </Link>
+    </section>
+  );
+}
+
+export default function App() {
+  return (
+    <CartProvider>
+      <Cursor />
+      <ScrollMoon />
+      <Navbar />
+      <ScrollManager />
+      <main>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/piece/:slug" element={<ProductPage />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </main>
+      <Footer />
+      <CartDrawer />
+    </CartProvider>
   );
 }
