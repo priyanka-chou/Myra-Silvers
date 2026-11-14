@@ -21,6 +21,36 @@ npm run preview  # serve the built bundle
 
 Node 20+ recommended.
 
+## Checks
+
+```bash
+npm run lint                  # eslint, clean
+npx playwright install chromium
+npm run build && npm run preview   # serve dist on :4173
+node scripts/qa.mjs           # layout + behaviour assertions
+npm run shots                 # desktop/mobile screenshots → ../screenshots
+```
+
+`scripts/qa.mjs` drives a real browser and asserts the things that are easy to
+break: no horizontal overflow at 390px or 1440px, WebGL mounted on desktop and
+skipped on mobile, every piece drawing real geometry, drag-to-turn advancing the
+angle, cart persisting through a reload, focus-free console. It exits non-zero on
+failure.
+
+Screenshots (desktop and mobile, 2× DPR) are written to `/screenshots`:
+
+| File | Shows |
+| --- | --- |
+| `desktop-hero.png` | First impression, 3D ring |
+| `desktop-full.png` | Whole page, night through dawn |
+| `desktop-product.png` | Product page |
+| `desktop-cart.png` | Cart drawer |
+| `mobile-hero.png` | 390px hero |
+| `mobile-menu.png` | Mobile navigation |
+| `mobile-full.png` | Whole page on mobile |
+| `mobile-product.png` | Mobile product page |
+| `mobile-cart.png` | Mobile cart |
+
 ---
 
 ## The concept

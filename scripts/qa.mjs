@@ -54,6 +54,16 @@ await check("hero type is display scale", async () => {
   assert(size >= 60, `h1 is only ${size}px`);
 });
 
+await check("revealed hero copy is actually visible", async () => {
+  const opacities = await page.evaluate(() =>
+    [".hero .eyebrow", ".hero h1", ".hero__lede", ".hero__actions .btn"].map((s) => {
+      const el = document.querySelector(s);
+      return el ? Number.parseFloat(getComputedStyle(el).opacity) : -1;
+    }),
+  );
+  opacities.forEach((o, i) => assert(o > 0.9, `hero element ${i} has opacity ${o}`));
+});
+
 await check("no text overlaps the nav", async () => {
   const bad = await page.evaluate(() => {
     const nav = document.querySelector(".nav").getBoundingClientRect();
@@ -102,9 +112,20 @@ for (const cat of CATS) {
   });
 }
 
+await check("scrolled-in sections reveal", async () => {
+  await page.evaluate(() => document.querySelector("#story").scrollIntoView({ block: "center" }));
+  await page.waitForTimeout(1000);
+  const ops = await page.evaluate(() =>
+    ["#story h2", "#story .story__numbers", ".detail h2"].map((s) => {
+      const el = document.querySelector(s);
+      return el ? Number.parseFloat(getComputedStyle(el).opacity) : -1;
+    }),
+  );
+  ops.forEach((o, i) => assert(o > 0.9, `section element ${i} has opacity ${o}`));
+});
+
 /* product page */
-await page.goto(BASE + "/piece/selene-band", { waitUntil: "networkidle" });
-await page.waitForTimeout(900);
+await page.goto(BASE + "/piece/selene-band", { waitUntil: "networkidle" });await page.waitForTimeout(900);
 
 console.log("\nProduct page");
 await check("gallery artwork renders", async () => {

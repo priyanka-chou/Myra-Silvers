@@ -61,13 +61,12 @@ function Gallery({ piece }) {
         </span>
       </div>
 
-      <div className="thumbs" role="tablist" aria-label="Angles">
+      <div className="thumbs" role="group" aria-label="Product angles">
         {[0, 1, 2, 3].map((v) => (
           <button
             key={v}
             className="thumb"
-            role="tab"
-            aria-selected={variant === v}
+            aria-pressed={variant === v}
             aria-label={`Angle ${v + 1}`}
             onClick={() => setVariant(v)}
           >

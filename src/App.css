@@ -942,7 +942,7 @@ svg {
 }
 
 .thumb:hover,
-.thumb[aria-selected="true"] {
+.thumb[aria-pressed="true"] {
   border-color: rgba(23, 26, 34, 0.6);
   background: rgba(255, 255, 255, 0.9);
 }
@@ -1671,7 +1671,7 @@ svg {
 
 .foot {
   padding: clamp(70px, 11vh, 120px) var(--pad) 26px;
-  background: linear-gradient(#8f949d 0%, #c9c6c0 26%, var(--dawn) 60%);
+  background: linear-gradient(#d5d2cb 0%, #e2dfd9 22%, var(--dawn) 62%);
   color: var(--dawn-text);
 }
 
