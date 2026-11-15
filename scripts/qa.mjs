@@ -18,6 +18,13 @@ const assert = (cond, msg) => {
   if (!cond) throw new Error(msg);
 };
 
+const orbitAngle = (page) =>
+  page.evaluate(() => {
+    const g = document.querySelector(".orrery__orbit");
+    const m = /rotate\(([-\d.]+)/.exec(g.getAttribute("transform") || "");
+    return m ? Number(m[1]) : NaN;
+  });
+
 const browser = await chromium.launch();
 
 /* ---------------- desktop ---------------- */
@@ -39,24 +46,24 @@ await check("no horizontal overflow", async () => {
   assert(sw <= iw + 1, `scrollWidth ${sw} > ${iw}`);
 });
 
-await check("hero ring mounted (canvas + WebGL)", async () => {
+await check("orrery core is a live WebGL ring", async () => {
   const info = await page.evaluate(() => {
-    const c = document.querySelector(".hero canvas");
+    const c = document.querySelector(".orrery canvas");
     if (!c) return null;
     return { w: c.width, h: c.height, gl: !!c.getContext("webgl2") || !!c.getContext("webgl") };
   });
-  assert(info, "no canvas in hero");
+  assert(info, "no canvas in the orrery");
   assert(info.w > 100 && info.gl, "canvas has no webgl context");
 });
 
 await check("hero type is display scale", async () => {
-  const size = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector(".hero h1")).fontSize));
-  assert(size >= 60, `h1 is only ${size}px`);
+  const size = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector(".orrery h1")).fontSize));
+  assert(size >= 36, `h1 is only ${size}px`);
 });
 
-await check("revealed hero copy is actually visible", async () => {
+await check("hero copy is actually visible", async () => {
   const opacities = await page.evaluate(() =>
-    [".hero .eyebrow", ".hero h1", ".hero__lede", ".hero__actions .btn"].map((s) => {
+    [".orrery .eyebrow", ".orrery h1", ".orrery__lede", ".orbits__btn"].map((s) => {
       const el = document.querySelector(s);
       return el ? Number.parseFloat(getComputedStyle(el).opacity) : -1;
     }),
@@ -67,65 +74,148 @@ await check("revealed hero copy is actually visible", async () => {
 await check("no text overlaps the nav", async () => {
   const bad = await page.evaluate(() => {
     const nav = document.querySelector(".nav").getBoundingClientRect();
-    const h1 = document.querySelector(".hero h1").getBoundingClientRect();
+    const h1 = document.querySelector(".orrery h1").getBoundingClientRect();
     return h1.top < nav.bottom - 4;
   });
-  assert(!bad, "hero headline runs under the fixed nav");
+  assert(!bad, "orrery headline runs under the fixed nav");
 });
 
-/* every category renders real artwork inside the card */
-for (const cat of CATS) {
-  await check(`category ${cat}: cards + artwork geometry`, async () => {
-    await page.click(`.ph:has-text("${cat}")`);
-    await page.waitForTimeout(450);
-    const data = await page.evaluate(() => {
-      const cards = [...document.querySelectorAll(".coll .card")];
-      return cards.map((card) => {
-        const media = card.querySelector(".card__media").getBoundingClientRect();
-        const svg = card.querySelector(".card__art");
-        const art = svg.getBoundingClientRect();
-        let drawn = 0;
-        for (const el of svg.querySelectorAll("path,ellipse,circle,polygon,rect")) {
-          try {
-            const b = el.getBBox();
-            if (b.width > 0.5 && b.height > 0.5 && Number.isFinite(b.x)) drawn++;
-          } catch {
-            /* ignore */
-          }
-        }
-        return {
-          name: card.querySelector("h3").textContent,
-          mediaW: media.width,
-          artW: art.width,
-          drawn,
-          overflow: media.left < -1 || media.right > window.innerWidth + 1,
-        };
-      });
+await check("five orbits carry twenty beads, all on the plate", async () => {
+  const data = await page.evaluate(() => {
+    const stage = document.querySelector(".orrery__stage").getBoundingClientRect();
+    const dots = [...document.querySelectorAll(".bead__dot")].map((d) => {
+      const b = d.getBoundingClientRect();
+      const cx = b.left + b.width / 2;
+      const cy = b.top + b.height / 2;
+      return {
+        inside: cx >= stage.left - 2 && cx <= stage.right + 2 && cy >= stage.top - 2 && cy <= stage.bottom + 2,
+        r: b.width / 2,
+      };
     });
-    assert(data.length === 4, `expected 4 cards, got ${data.length}`);
-    for (const c of data) {
-      assert(c.mediaW > 180, `${c.name}: card only ${c.mediaW}px`);
-      assert(c.artW > 60, `${c.name}: artwork only ${c.artW}px`);
-      assert(c.drawn >= 2, `${c.name}: only ${c.drawn} drawable shapes`);
-      assert(!c.overflow, `${c.name}: card overflows viewport`);
-    }
+    return { orbits: document.querySelectorAll(".orrery__orbit").length, dots };
   });
-}
+  assert(data.orbits === 5, `expected 5 orbit groups, got ${data.orbits}`);
+  assert(data.dots.length === 20, `expected 20 beads, got ${data.dots.length}`);
+  const outside = data.dots.filter((d) => !d.inside).length;
+  assert(outside === 0, `${outside} beads fall outside the plate`);
+  const tooSmall = data.dots.filter((d) => d.r < 3).length;
+  assert(tooSmall === 0, `${tooSmall} beads are too small to see`);
+});
+
+await check("the machine turns when dragged", async () => {
+  const before = await orbitAngle(page);
+  const box = await page.locator(".orrery__stage").boundingBox();
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + 150, cy, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(120);
+  const after = await orbitAngle(page);
+  const delta = Math.abs(after - before);
+  assert(Number.isFinite(delta) && delta > 10, `orbit only moved ${delta.toFixed(1)}°`);
+});
+
+await check("orbit selector turns the drawer and the caption", async () => {
+  await page.click('.orbits__btn:has-text("Earrings")');
+  await page.waitForTimeout(300);
+  const state = await page.evaluate(() => ({
+    pressed: document.querySelector('.orbits__btn[aria-pressed="true"] .orbits__name').textContent.trim(),
+    strip: [...document.querySelectorAll(".plate-tab__name")].map((n) => n.textContent.trim()),
+    caption: document.querySelector(".orrery__copy h2").textContent.trim(),
+    plate: document.querySelector(".plate-line").textContent.trim(),
+    lit: document.querySelectorAll(".bead.is-lit").length,
+  }));
+  assert(state.pressed === "Earrings", `pressed orbit is ${state.pressed}`);
+  assert(state.strip.length === 4, `strip shows ${state.strip.length} pieces`);
+  assert(state.strip.includes("Crescent Drops"), `strip is ${state.strip.join(", ")}`);
+  assert(state.caption === "Crescent Drops", `caption is ${state.caption}`);
+  assert(state.plate.includes("II"), `plate line is ${state.plate}`);
+  assert(state.lit === 4, `expected 4 lit beads on the earring orbit, got ${state.lit}`);
+});
+
+await check("strip selects a piece without leaving the page", async () => {
+  await page.click('.plate-tab:has-text("Pearl Hoops")');
+  await page.waitForTimeout(250);
+  const caption = await page.locator(".orrery__copy h2").textContent();
+  const price = await page.locator(".orrery__price").textContent();
+  assert(caption.trim() === "Pearl Hoops", `caption is ${caption}`);
+  assert(price.includes("2,299"), `price is ${price}`);
+  const href = await page.locator(".orrery__copy .link-rule").getAttribute("href");
+  assert(href === "/piece/pearl-hoops", `open link points to ${href}`);
+});
+
+await check("the plates index lists all twenty pieces", async () => {
+  const rows = await page.evaluate(() =>
+    [...document.querySelectorAll(".plates__row")].map((r) => ({
+      name: r.querySelector(".plates__name").textContent.trim(),
+      price: r.querySelector(".plates__price").textContent.trim(),
+      art: r.querySelector(".plates__art svg") ? 1 : 0,
+    })),
+  );
+  assert(rows.length === 20, `expected 20 plates, got ${rows.length}`);
+  assert(rows.every((r) => r.name.length > 0), "a plate has no name");
+  assert(rows.every((r) => /₹/.test(r.price)), "a plate has no price");
+  assert(rows.every((r) => r.art === 1), "a plate has no artwork");
+});
+
+await check("hovering a plate lifts a preview beside the pointer", async () => {
+  await page.locator(".plates__row").nth(6).scrollIntoViewIfNeeded();
+  await page.locator(".plates__row").nth(6).hover();
+  await page.waitForTimeout(450);
+  const preview = await page.evaluate(() => {
+    const el = document.querySelector(".plates__preview");
+    const art = el.querySelector(".art");
+    const box = el.getBoundingClientRect();
+    return {
+      on: el.dataset.on,
+      art: art ? art.getBoundingClientRect().width : 0,
+      x: box.x,
+      y: box.y,
+      visible: getComputedStyle(el).visibility,
+    };
+  });
+  assert(preview.on === "true", "preview did not switch on");
+  assert(preview.art > 100, `preview artwork is ${preview.art}px`);
+  assert(preview.visible === "visible", "preview is not visible");
+  assert(preview.x >= 0 && preview.x < 1440, `preview is off-screen at x=${preview.x}`);
+  assert(preview.y >= 0 && preview.y < 900, `preview is off-screen at y=${preview.y}`);
+});
+
+await check("a plate opens its product page", async () => {
+  await page.locator(".plates__row").nth(0).click();
+  await page.waitForTimeout(600);
+  assert(/\/piece\/selene-band$/.test(page.url()), `landed on ${page.url()}`);
+});
 
 await check("scrolled-in sections reveal", async () => {
+  await page.goto(BASE + "/", { waitUntil: "networkidle" });
+  await page.waitForTimeout(1200);
   await page.evaluate(() => document.querySelector("#story").scrollIntoView({ block: "center" }));
   await page.waitForTimeout(1000);
-  const ops = await page.evaluate(() =>
-    ["#story h2", "#story .story__numbers", ".detail h2"].map((s) => {
+  const storyOps = await page.evaluate(() =>
+    ["#story h2", "#story .story__numbers"].map((s) => {
       const el = document.querySelector(s);
       return el ? Number.parseFloat(getComputedStyle(el).opacity) : -1;
     }),
   );
-  ops.forEach((o, i) => assert(o > 0.9, `section element ${i} has opacity ${o}`));
+  storyOps.forEach((o, i) => assert(o > 0.9, `story element ${i} has opacity ${o}`));
+
+  await page.evaluate(() => document.querySelector(".plates__head").scrollIntoView({ block: "center" }));
+  await page.waitForTimeout(1000);
+  const plateOps = await page.evaluate(() =>
+    [".plates__head h2", ".plates__head .plates__lede", ".plates__item"].map((s) => {
+      const el = document.querySelector(s);
+      return el ? Number.parseFloat(getComputedStyle(el).opacity) : -1;
+    }),
+  );
+  plateOps.forEach((o, i) => assert(o > 0.9, `plates element ${i} has opacity ${o}`));
 });
 
 /* product page */
-await page.goto(BASE + "/piece/selene-band", { waitUntil: "networkidle" });await page.waitForTimeout(900);
+await page.goto(BASE + "/piece/selene-band", { waitUntil: "networkidle" });
+await page.waitForTimeout(900);
 
 console.log("\nProduct page");
 await check("gallery artwork renders", async () => {
@@ -214,12 +304,55 @@ await check("no horizontal overflow", async () => {
   assert(sw <= iw + 1, `scrollWidth ${sw} > ${iw}`);
 });
 
-await check("mobile shows svg ring, not canvas", async () => {
+await check("mobile shows the svg ring, not canvas", async () => {
   const has = await m.evaluate(() => ({
-    canvas: !!document.querySelector(".hero canvas"),
-    svg: !!document.querySelector(".hero .ring-svg"),
+    canvas: !!document.querySelector(".orrery canvas"),
+    svg: !!document.querySelector(".orrery__ring-svg"),
   }));
-  assert(has.svg && !has.canvas, "hero did not fall back to the SVG ring");
+  assert(has.svg && !has.canvas, "orrery did not fall back to the SVG ring");
+});
+
+await check("orrery is stacked and the stage fits", async () => {
+  const r = await m.evaluate(() => {
+    const stage = document.querySelector(".orrery__stage").getBoundingClientRect();
+    const intro = document.querySelector(".orrery__intro").getBoundingClientRect();
+    return { w: stage.width, left: stage.left, right: stage.right, introBottom: intro.bottom, stageTop: stage.top };
+  });
+  assert(r.w > 280 && r.w <= 390, `stage is ${r.w}px wide`);
+  assert(r.left >= 0 && r.right <= 390.5, "stage overflows the viewport");
+  assert(r.stageTop >= r.introBottom - 2, "stage overlaps the intro copy");
+});
+
+await check("beads stay large enough to tap", async () => {
+  const r = await m.evaluate(() =>
+    [...document.querySelectorAll(".bead__dot")].map((d) => parseFloat(getComputedStyle(d).r || "0")),
+  );
+  const small = r.filter((v) => !(v >= 8)).length;
+  assert(r.length === 20, `expected 20 beads, got ${r.length}`);
+  assert(small === 0, `${small} beads are smaller than 8px`);
+});
+
+await check("piece strip is a two-by-two block", async () => {
+  const cols = await m.evaluate(
+    () => getComputedStyle(document.querySelector(".orrery__strip")).gridTemplateColumns.split(" ").length,
+  );
+  assert(cols === 2, `strip has ${cols} columns`);
+});
+
+await check("plates index is a compact three-column list", async () => {
+  const r = await m.evaluate(() => {
+    const row = document.querySelector(".plates__row");
+    return {
+      cols: getComputedStyle(row).gridTemplateColumns.split(" ").length,
+      art: getComputedStyle(row.querySelector(".plates__art")).display,
+      preview: getComputedStyle(document.querySelector(".plates__preview")).display,
+      rows: document.querySelectorAll(".plates__row").length,
+    };
+  });
+  assert(r.rows === 20, `expected 20 plates, got ${r.rows}`);
+  assert(r.cols === 3, `row has ${r.cols} columns`);
+  assert(r.art === "none", "row artwork is still shown on mobile");
+  assert(r.preview === "none", "floating preview is still active on mobile");
 });
 
 await check("desktop links hidden, toggle visible", async () => {
@@ -238,11 +371,6 @@ await check("menu opens and closes", async () => {
   await m.click(".menu__link");
   await m.waitForTimeout(600);
   assert(!(await m.evaluate(() => document.querySelector(".menu").classList.contains("is-open"))), "menu stayed open");
-});
-
-await check("grid is two columns at 390px", async () => {
-  const cols = await m.evaluate(() => getComputedStyle(document.querySelector(".grid")).gridTemplateColumns.split(" ").length);
-  assert(cols === 2, `grid has ${cols} columns`);
 });
 
 await check("product buy button is reachable (no overflow)", async () => {

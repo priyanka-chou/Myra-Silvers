@@ -34,6 +34,12 @@ await d.goto(`${BASE}/`, { waitUntil: "networkidle" });
 await d.waitForTimeout(4200);
 await d.screenshot({ path: path.join(OUT, "desktop-hero.png") });
 
+await d.evaluate(() => document.querySelector(".plates__head").scrollIntoView({ block: "start" }));
+await d.waitForTimeout(1200);
+await d.locator(".plates__row").nth(3).hover();
+await d.waitForTimeout(700);
+await d.screenshot({ path: path.join(OUT, "desktop-plates.png") });
+
 await scrollThrough(d);
 await d.evaluate(() => window.scrollTo(0, 0));
 await d.waitForTimeout(900);
@@ -61,6 +67,12 @@ await m.goto(`${BASE}/`, { waitUntil: "networkidle" });
 await m.waitForTimeout(2200);
 await m.screenshot({ path: path.join(OUT, "mobile-hero.png") });
 
+await m.evaluate(() => document.querySelector(".plates__head").scrollIntoView({ block: "start" }));
+await m.waitForTimeout(1200);
+await m.screenshot({ path: path.join(OUT, "mobile-plates.png") });
+
+await m.evaluate(() => window.scrollTo(0, 0));
+await m.waitForTimeout(500);
 await m.click(".nav__toggle");
 await m.waitForTimeout(700);
 await m.screenshot({ path: path.join(OUT, "mobile-menu.png") });

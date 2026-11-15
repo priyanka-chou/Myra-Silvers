@@ -5,10 +5,10 @@ import useReveal from "./hooks/useReveal";
 import Cursor from "./components/Cursor";
 import ScrollMoon from "./components/ScrollMoon";
 import Navbar from "./components/Navbar";
-import Hero from "./components/Hero";
+import Orrery from "./components/Orrery";
 import Marquee from "./components/Marquee";
 import Story from "./components/Story";
-import Collection from "./components/Collection";
+import Plates from "./components/Plates";
 import Featured from "./components/Featured";
 import ProductPage from "./components/ProductPage";
 import Footer from "./components/Footer";
@@ -37,10 +37,10 @@ function Home() {
   useReveal([]);
   return (
     <>
-      <Hero />
+      <Orrery />
       <Marquee />
       <Story />
-      <Collection />
+      <Plates />
       <Featured />
     </>
   );
